@@ -1,0 +1,132 @@
+---
+title: "TT"
+author: "Mark Deming"
+date: "2/03/2026"
+output: html_document
+---
+
+Techniques learned from this TT were mainly data manipulation: use of `rowwise` and `mutate` to expand each row to include rows for each value in a sequence (see 67 and 77-78). Ridgelines plot itself is very similar to what I produced last week for Brazilian companies.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Packages
+pacman::p_load(here, tidyverse, usethis, gitcreds, tidytuesdayR, ggridges, extrafont)
+
+# Open GitHub token page in browser
+#usethis::create_github_token()
+
+# Store the PAT securely
+#gitcreds::gitcreds_set()
+
+# Grab TT data
+tt <- tidytuesdayR::tt_load("2026-02-03")
+
+plants <- tt$edible_plants
+head(plants)
+
+# Relationship between water and temperature
+plants %>%
+  mutate(lower_temp = as.numeric(sub("-.*", "", temperature_growing)),
+         upper_temp = as.numeric(sub(".*-", "", temperature_growing))) %>%
+  ggplot(aes(lower_temp, water)) +
+  geom_point()
+  
+
+# Relationship between water and temperature
+plants %>%
+  mutate(lower_temp = as.numeric(sub("-.*", "", temperature_growing)),
+         upper_temp = as.numeric(sub(".*-", "", temperature_growing)),
+         avg_temp = lower_temp + upper_temp / 2,
+         water = case_when(water == "Very low" ~ "Very Low",
+                           water == "very high" ~ "Very High",
+                           water == "high" ~ "High",
+                           .default = water), 
+         water = factor(water, levels = c("Very Low", 
+                                          "Low", 
+                                          "Medium", 
+                                          "High", 
+                                          "Very High"))) %>%
+  filter(!is.na(temperature_growing),
+         !is.na(sunlight)) %>%
+  ggplot() +
+  geom_segment(aes(x = lower_temp, xend = upper_temp, y = reorder(common_name, avg_temp))) 
+
+
+# Grab germination and grow temp ranges for each plant
+plants <- plants %>%
+  filter(!is.na(temperature_growing),
+         !is.na(temperature_germination)) %>%
+  mutate(grow_temp_lo = as.numeric(sub("-.*", "", temperature_growing)),
+         grow_temp_hi = as.numeric(sub(".*-", "", temperature_growing)),
+         germ_temp_lo = as.numeric(sub("-.*", "", temperature_germination)),
+         germ_temp_hi = as.numeric(sub(".*-", "", temperature_germination))) 
+  
+# Expand each row into many using above ranges
+expand_range <- function(lo, hi, step = 0.5) {
+  seq(lo, hi, by = step)
+}
+
+temps_long <- plants %>%
+  filter(!is.na(grow_temp_hi)) %>%
+  select(taxonomic_name, common_name, cultivation,
+         germ_temp_lo, germ_temp_hi,
+         grow_temp_lo, grow_temp_hi) %>%
+  rowwise() %>%
+  mutate(
+    germ_temp = list(expand_range(germ_temp_lo, germ_temp_hi)),
+    grow_temp = list(expand_range(grow_temp_lo, grow_temp_hi))
+  ) %>%
+  ungroup() %>%
+  pivot_longer(c(germ_temp, grow_temp),
+               names_to = "type",
+               values_to = "temp") %>%
+  unnest(temp) %>%
+  mutate(
+    type = recode(type,
+                  germ_temp = "Germination",
+                  grow_temp = "Growing")
+  )
+
+# Sanity check
+temps_long %>%
+  count(cultivation, type, name = "n_points") %>%
+  arrange(type, desc(n_points))
+
+# Designate a color palette
+# Tableau palette with 14 colors
+my_pal <- c("")
+
+# Ridgelines plot
+p <-
+temps_long %>%
+  group_by(type, cultivation) %>%
+  mutate(median_temp = median(temp, na.rm = T)) %>%
+  ggplot(aes(x = temp, y = reorder(cultivation, median_temp), fill = type)) +
+  ggridges::geom_density_ridges(alpha = .6, color = "white", scale = 1.1) +
+  scale_fill_manual(values = c("Germination" = "#3B7A57",
+                               "Growing" = "#E69F00"
+)) +
+    labs(x = "\nTemperature (Celsius)",
+       y = "",
+       title = "Growing and Germination Temperatures by Plant Family",
+       fill = "Germination vs. Growing") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(linetype = "dotted", color = "gray70"),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(color = "black"),
+        text = element_text(family = "Raleway"),
+        plot.title.position = "plot",
+        plot.margin = margin(10, 10, 10, 25),
+        legend.position = "top",
+        legend.box.just = "left",
+        legend.justification = c(0, 1),
+        legend.box.margin = margin(l = -80))
+
+# Save
+ggsave(here("2026.02.03", "plant_growing_and_germination_temps.png"), 
+       p,
+       width = 8,
+       height = 6)
+```

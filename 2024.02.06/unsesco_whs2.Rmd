@@ -1,0 +1,136 @@
+---
+title: "A few World Heritage Sites"
+author: "Mark Deming"
+date: "2024-02-06"
+output: html_document
+---
+
+This is my second attempt. The results are identical but the code is streamlined. It is a better solution. Note the use of `ggnewscale` (which is pretty cool).
+
+```{r include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Packages
+library(readr)
+library(tidyverse)
+library(ggnewscale) # for multiple scale_
+library(cowplot)    # for image
+library(magick)     # for image
+library(here)
+library(extrafont)
+
+# Data
+url <- "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-02-06/heritage.csv"
+dat <- read_csv(url(url))
+
+# Define colors
+swe04 <- "#4472D1"
+swe22 <- "#6493E5"
+swePt <- "#3660C2" 
+den04 <- "#DE5F4A" 
+den22 <- "#E37D6C"
+denPt <- "#C54E44" 
+nor04 <- "#2A324E"
+nor22 <- "#444B63" 
+norPt <- "#192039" 
+
+# Define image files
+swe_flag <- magick::image_read(here("swe_flag.png"))
+den_flag <- magick::image_read(here("den_flag.png"))
+nor_flag <- magick::image_read(here("nor_flag.png"))
+
+# Manipulate data
+lng_dat <- dat %>%
+  
+  # Reshape data to wide format
+  pivot_longer(cols = -country,
+              names_to = "year",
+              values_to = "sites") %>%
+
+  # New variable of sites added by year
+  group_by(country) %>%
+  mutate(sites_added = sites - lag(sites),
+         sites_added = ifelse(is.na(sites_added), sites, sites_added)) %>%
+
+  # Add row numbers
+  ungroup() %>%
+  mutate(id = factor(row_number())) %>%
+
+  # Reorder factors variables
+  mutate(country = factor(country, levels = c("Sweden", "Denmark", "Norway")),
+         year = as.numeric(as.character(year)))
+
+########### Plot ############
+
+p <- ggplot(data = lng_dat) +
+
+  # Add bar plot 
+  geom_bar(aes(x = country, y = sites_added, fill = fct_rev(id)),
+           stat = "identity",
+           width = .25) +
+  
+  # Set bar fill color
+  scale_fill_manual(values = c(swe22, swe04, den22, den04, nor22, nor04),
+                    guide = "none") +
+  
+  # Add points
+  geom_point(aes(x = country, y = sites, color = fct_rev(id)), size = 11) +
+  
+  # Set point color
+  scale_color_manual(values = c(swe22, swe04, den22, den04, nor22, nor04),
+                     guide = "none") +
+  
+  # New scale_color (for text label points)
+  new_scale_color() +
+  
+  # Add text label points
+  geom_point(aes(x = country, y = sites, color = country), size = 9) +
+  
+  # Set point color
+  scale_color_manual(values = c(swePt, denPt, norPt),
+                     guide = "none") +
+  
+  # Flip x and y axes
+  coord_flip() + 
+  
+  # Add points at 0 by country
+  geom_point(x = 1, y = 0, size = 11, color = swe04) +
+  geom_point(x = 2, y = 0, size = 11, color = den04) +
+  geom_point(x = 3, y = 0, size = 11, color = nor04) +
+  
+  # Add labels to points
+  geom_text(aes(x = country, 
+                y = sites_added,
+                label = sites),
+                position = position_stack(vjust = 1),
+                color = "white",
+                size = 3) +
+  
+  # Label years in lieu of legend
+  geom_text(aes(x = .8, y = 13), label = "2004", family = "Arial") +
+  geom_text(aes(x = .8, y = 15), label = "2022", family = "Arial") +
+  
+  # Adjust theme() elements
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(family = "Arial Black",
+                                   hjust = 0,
+                                   size = 12),
+        plot.title = element_text(family = "Arial",
+                                  size = 12),
+        plot.title.position = "plot",
+        plot.margin = margin(0,2,0,2, unit = "cm")) +
+  
+  # Set title and axis labels
+  labs(title = "#6",
+       x = "",
+       y = "")
+
+
+# Save plot
+# ggsave(here("rounded_barplot6(2).png"), p)
+
+# Print plot in HTML
+p
+```

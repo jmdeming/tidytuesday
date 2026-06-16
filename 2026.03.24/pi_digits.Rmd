@@ -1,0 +1,281 @@
+---
+title: "Untitled"
+author: "Mark Deming"
+date: "3/26/2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+tuesdata <- tidytuesdayR::tt_load(2026, week = 12)
+pi <- tuesdata$pi_digits
+
+pacman::p_load(tidyverse, ggthemes, sysfonts, showtext, ggridges, slider)
+#str(pi)
+```
+
+Runs...
+
+Distribution...
+
+```{r}
+# Simple distribution of digits
+ggplot(pi, aes(x = digit)) +
+  geom_density() +
+  scale_x_continuous(breaks = seq(0, 9, 1)) 
+```
+
+Rolling distributions...
+
+```{r}
+# Define window for rolling sums
+window_size <- 1000
+
+# Define dummy columns
+dummy_cols <- paste0("d_", 0:9)
+
+# Create dummies
+pi_roll <- pi |> 
+  mutate(
+    d_0 = as.integer(digit == 0),
+    d_1 = as.integer(digit == 1),
+    d_2 = as.integer(digit == 2),
+    d_3 = as.integer(digit == 3),
+    d_4 = as.integer(digit == 4),
+    d_5 = as.integer(digit == 5),
+    d_6 = as.integer(digit == 6),
+    d_7 = as.integer(digit == 7),
+    d_8 = as.integer(digit == 8),
+    d_9 = as.integer(digit == 9)
+  )
+
+# For rolling windows of 1K rows, calculate proportion for each digit
+pi_roll <- pi_roll |> 
+   mutate(
+    across(
+      starts_with("d_"),
+      ~ slide_dbl(.x, ~ sum(.x), .before = window_size - 1, .complete = TRUE) / window_size
+    )
+  )
+
+# Convert to long format
+pi_long <- pi_roll %>%
+  select(digit_position, starts_with("d_")) %>%
+  pivot_longer(
+    cols = starts_with("d_"),
+    names_to = "digit",
+    values_to = "frequency"
+  ) |>
+  mutate(
+    digit = as.integer(sub("d_", "", digit))
+  )
+
+
+# Ready to plot
+ggplot(pi_long, aes(x = 1, y = frequency)) +
+  geom_line(linewidth = 0.3, color = "steelblue") +
+  facet_wrap(~ digit, ncol = 5) +
+  labs(
+    title = "Rolling Frequencies of Digits in Pi",
+    x = "Digit position",
+    y = "Frequency in 1,000-digit window"
+  ) +
+  theme_minimal()
+
+
+pi_long_sample <- pi_long %>%
+  filter(digit_position %% 100 == 0)
+
+# Ready to plot
+ggplot(pi_long_sample, aes(x = 1, y = frequency)) +
+  geom_boxplot(linewidth = 0.3, color = "steelblue") +
+  facet_wrap(~ digit, ncol = 5) +
+  labs(
+    title = "Rolling Frequencies of Digits in Pi",
+    x = "Digit position",
+    y = "Frequency in 1,000-digit window"
+  ) +
+  theme_minimal()
+```
+
+Boxplots not much more informative. Maybe geom_pointrange for mean plus 95% CI and geom_point for min and max with labels. Keep in mind for later, since still probably not a very interesting plot. 
+
+Maybe a heat map...
+
+```{r}
+
+ggplot(pi_long_sample, aes(x = digit_position, y = digit, fill = frequency)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(
+    title = "Rolling Digit Frequencies (Heatmap)",
+    x = "Position",
+    y = "Digit"
+  ) +
+  theme_minimal()
+
+```
+
+Same problem: pi behaves too well. Better to treat it as a sequence. Start by laying out a grid with the first 1,000 digits...
+
+```{r}
+N <- 2000
+digits_per_row <- 50
+
+pi_grid <- pi %>%
+  slice(1:N) %>%
+  mutate(
+    row = (digit_position - 1) %/% digits_per_row,
+    col = (digit_position - 1) %% digits_per_row,
+    group10 = col %/% 10,
+    digit_label = ifelse(digit_position == 1,
+                         paste0(digit, "."),
+                         as.character(digit)))
+  
+
+# plot
+ggplot(pi_grid, aes(x = col, y = -row)) +
+  geom_text(
+    aes(label = digit_label),
+    family = "mono",
+    color = "grey50",
+    size = 3
+  ) +
+  geom_vline(
+    xintercept = seq(-0.5, digits_per_row, by = 10),
+    color = "grey90",
+    linewidth = 0.3
+  ) +
+  coord_fixed(ratio = 1.2) +
+  theme_void() +
+  labs(
+    title = "The First 1,000 Digits of π"
+  )
+  
+
+# parameters
+N <- 1000
+
+# collapse first N digits into a single string
+pi_string <- pi %>%
+  slice(1:N) %>%
+  pull(digit) %>%
+  paste0(collapse = "")
+
+
+# Candidate dates / sequences to search
+
+candidates <- c("0617",
+                "0703",
+                "0629",
+                "0823",
+                "1776",
+                "2000",
+                "1492",
+                "1981",
+                "2014",
+                "2002",
+                "23188",
+                "1225")
+
+# search for first occurrence of each candidate
+results <- tibble(
+  pattern = candidates,
+  first_position = str_locate(pi_string, candidates)[, "start"]
+) %>%
+  mutate(
+    found = !is.na(first_position)
+  ) %>%
+  arrange(desc(found), first_position)
+
+results_found <- results %>%
+  filter(found)
+
+results_found
+
+library(dplyr)
+library(purrr)
+library(tidyr)
+
+highlight_df <- results_found %>%
+  mutate(
+    pattern_length = nchar(pattern),
+    digit_position = map2(
+      first_position,
+      pattern_length,
+      ~ seq(.x, .x + .y - 1)
+    )
+  ) %>%
+  unnest(digit_position)
+
+digits_per_row <- 50
+
+pi_grid <- pi %>%
+  slice(1:N) %>%
+  mutate(
+    row = (digit_position - 1) %/% digits_per_row,
+    col = (digit_position - 1) %% digits_per_row,
+    digit_label = ifelse(
+      digit_position == 1,
+      paste0(digit, "."),
+      as.character(digit)
+    )
+  )
+
+
+pi_grid_highlight <- pi_grid %>%
+  left_join(
+    highlight_df %>% select(digit_position, pattern),
+    by = "digit_position"
+  ) %>%
+  mutate(
+    highlighted = !is.na(pattern)
+  )
+
+library(ggplot2)
+
+ggplot(pi_grid_highlight, aes(x = col, y = -row)) +
+  geom_tile(
+    data = pi_grid_highlight %>% filter(highlighted),
+    aes(fill = pattern),
+    width = 0.95,
+    height = 0.95,
+    alpha = 0.5
+  ) +
+  geom_text(
+    aes(label = digit_label),
+    family = "mono",
+    color = "grey35",
+    size = 3
+  ) +
+  geom_vline(
+    xintercept = seq(-0.5, digits_per_row, by = 10),
+    color = "grey90",
+    linewidth = 0.3
+  ) +
+  scale_fill_manual(
+    values = c(
+      "0617" = "#F4A7A3",
+      "2000" = "#A7C7E7",
+      "1492" = "#C8DDAF",
+      "1776" = "#F2C38F",
+      "1914" = "#D6B3E6",
+      "1945" = "#F6D6A8",
+      "1989" = "#A9D6C3",
+      "2001" = "#E7B3C8",
+      "2020" = "#D0D0D0"
+    ),
+    na.translate = FALSE
+  ) +
+  coord_fixed(ratio = 1.2) +
+  theme_void() +
+  labs(
+    title = "The First 1,000 Digits of π",
+    subtitle = "Selected sequences highlighted",
+    fill = "Sequence"
+  )
+
+
+
+```

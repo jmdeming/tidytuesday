@@ -1,0 +1,182 @@
+---
+title: "Tidy Tuesday"
+subtitle: "Olympic Athletes & Medals"
+author: "Mark Deming"
+date: "2024-08-06"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load data
+tuesdata <- tidytuesdayR::tt_load('2024-08-06')
+dat <- tuesdata$olympics
+
+# Load packages
+pacman::p_load(tidyverse, 
+               extrafont, 
+               ggtext,      # for geom_textbox()
+               patchwork,   # for arranging plots
+               ggpubr)      # for 
+
+```
+
+## Data wrangling
+
+```{r}
+
+# Get female participation for summer Olympics over time
+gndr <- dat %>%
+  mutate(male = ifelse(sex == "M", 1, 0),
+         female = ifelse(sex == "F", 1, 0)) %>%
+  filter(season == "Summer") %>%
+  group_by(year) %>%
+  summarize(male = sum(male),
+            female = sum(female)) %>%
+  mutate(prop_female = female / (male + female))
+  
+# Get female participation by sport over time
+gndr_sprt <- dat %>%
+  mutate(male = ifelse(sex == "M", 1, 0),
+         female = ifelse(sex == "F", 1, 0)) %>%
+  filter(season == "Summer") %>%
+  group_by(year, sport) %>%
+  summarize(male = sum(male),
+            female = sum(female)) %>%
+  mutate(prop_female = female / (male + female))
+
+# Add missing values to archery and tennis
+df <- data.frame(year = rep(seq(1896, 2016, 4), times = 2),
+                 sport = rep(c("Archery", "Tennis"), each = length(seq(1896, 2016, 4))))
+
+gndr_sprt <- gndr_sprt %>%
+  full_join(df, by = c("sport", "year"))
+
+# Add prop_female for year 2000
+
+gndr_sprt <- gndr_sprt %>%
+  group_by(sport) %>%
+  mutate(prop_female_2000 = ifelse(year == 2000, prop_female, NA)) %>%
+  fill(prop_female_2000, .direction = "updown") %>%
+  filter(!is.na(prop_female_2000),
+         prop_female_2000 != 1,
+         sport != "Baseball")
+
+```
+
+## Theming
+
+```{r}
+
+my_theme <- theme(base_size = 16,
+                  text = element_text(family = "Helvetica Neue Light"),
+                  panel.grid.major = element_blank(),
+                  panel.grid.minor = element_blank(),
+                  axis.ticks = element_blank(),
+                  plot.title.position = "plot",
+                  axis.text = element_text(angle = 45, hjust = 1, size = 6),
+                  strip.background = element_blank(),
+                  strip.text = element_text(hjust = 0)
+                  )
+
+```
+
+## Plot 1: Female participation over time
+
+```{r}
+
+p1 <-  ggplot(gndr) +
+  geom_line(aes(x = year, y = prop_female), color = "gray30", linewidth = .3) +
+  scale_x_continuous(limits = c(1896, 2016),
+                     breaks = seq(1896, 2016, 4),
+                     labels = seq(1896, 2016, 4)) +
+  scale_y_continuous(limits = c(0, .50),
+                     breaks = seq(0, .50, .05),
+                     labels = scales::percent) +
+  theme_bw() +
+  my_theme +
+  labs(title = "Figure 1: Female athletes as a percentage of all summer Olympic athletes",
+         x = "\nSummer Olympics year",
+         y = "Female althelete percentage\n") 
+  
+```
+
+# Plot 2: Female participation by sport over time
+
+```{r}
+
+p2 <- ggplot(gndr_sprt) +
+  geom_hline(yintercept = .5, color = "gray90", linetype = "dotted") +
+  geom_line(aes(x = year, y = prop_female), color = "gray30", linewidth = .3) +
+  facet_wrap(~forcats::fct_reorder(sport, -prop_female_2000)) +
+  scale_x_continuous(limits = c(1896, 2016),
+                     breaks = seq(1896, 2016, 12),
+                     labels = seq(1896, 2016, 12)) +
+  scale_y_continuous(limits = c(0,.55),
+                     breaks = seq(0,.50,.10),
+                     labels = scales::percent) +
+  theme_bw() +
+  my_theme +
+  labs(title = "Figure 2: Female athletes as a percentage of all summer Olympic athletes by sport",
+         x = "\nSummer Olympics year",
+         y = "Female althelete percentage\n",
+         caption = "Source: TidyTuesday")
+
+```
+
+## Plot 3: Textbox
+
+```{r}
+
+my_text <- paste("Paris 2024 are the first Olympics to achieve gender parity. Of the 10,500 athletes competing, 50% are men, and 50% are female.\n\nFigure 1 shows that this is the culmination of a slow but steady trend toward greater gender parity over time. By Rio 2016, around 45% of Olympic athletes were female.\n\nFigure 2 shows that representation of female athletes has varied across sports. Organizers made a concerted push toward greater gender parity by adding new sports and mandating equal participation in many sports beginning in 2000.")
+
+text_box <- ggplot(data = tibble(x = 0, y = 1, label = my_text)) +
+  aes(x = x, y = y, label = label) +
+  geom_textbox(box.color = NA,
+               fill = NA,
+               width = unit(7.5, "cm"),
+               hjust = 0,
+               vjust = 1,
+               family = "Helvetica Neue Light",
+               size = 3.25) +
+  scale_x_continuous(limits = c(0, 1), 
+                     expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 1), 
+                     expand = c(0, 0)) +
+  labs(title = "\n\n") +
+  theme_void() +
+  theme(plot.margin = margin(0, 0, 0, 0))
+
+```
+
+## Arrange plots
+
+```{r}
+
+top <- patchwork::wrap_elements(p1) + 
+  patchwork::wrap_elements(text_box) + 
+  patchwork::plot_layout(ncol = 2, width = c(4, 3))
+
+bottom <- patchwork::wrap_elements(p2)
+
+my_graphic <- top / bottom + plot_layout(heights = c(2, 3)) + 
+  plot_annotation("Gender Parity at the Summer Olympics, 1896-2016", 
+                  theme = theme(plot.title = element_text(family = "Helvetica Neue Light",
+                                                          size = 16 )))
+
+```
+
+## Save
+
+```{r}
+
+ggsave("gender_parity_at_olympics.png",
+       my_graphic,
+       width = 20,
+       height = 25,
+       units = "cm")
+
+```

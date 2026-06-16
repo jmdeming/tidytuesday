@@ -1,0 +1,84 @@
+---
+title: "TidyTuesday"
+author: "Mark Deming"
+date: "1/27/2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Packages
+pacman::p_load(here, tidyverse, usethis, gitcreds, tidytuesdayR, ggridges, extrafont)
+
+# Open GitHub token page in browser
+#usethis::create_github_token()
+
+# Store the PAT securely
+#gitcreds::gitcreds_set()
+
+# Grab TT data
+tt <- tidytuesdayR::tt_load("2026-01-27")
+
+# Find font
+#extrafont::font_import()
+extrafont::loadfonts(device = "pdf")
+fonts()
+
+# Pull data from TT
+companies <- tt$companies
+legal_nature <- tt$legal_nature
+qualifications <- tt$qualifications
+size <- tt$size
+
+# Designate a color palette
+# Tableau palette with 14 colors
+pal14 <- ggthemes::tableau_color_pal("Tableau 20")(14)
+
+
+# Density ridges plot by legal_nature
+p <-
+companies %>%
+  filter(capital_stock != max(capital_stock)) %>%
+  group_by(legal_nature) %>%
+  filter(n() > 10) %>%
+  mutate(median_stock = median(capital_stock, na.rm = TRUE)) %>%
+  ggplot(aes(x = log10(capital_stock), y = reorder(legal_nature, -median_stock), fill = legal_nature)) +
+  ggridges::geom_density_ridges(alpha = .7, show.legend = FALSE) +
+  scale_x_continuous(limits = c(4.5, 12.5),
+                    breaks = seq(5, 12, 1),
+                     labels = function(x)
+    scales::label_dollar(
+      prefix = "R$ ",
+      scale_cut = scales::cut_short_scale(),
+      accuracy = 1
+    )(10^x),
+                    expand = c(0,0)) +
+  scale_y_discrete(expand = expansion(mult = c(0.02, 0.15))) +
+  scale_fill_manual(values = pal14) +
+  labs(x = "\nDeclared capital (R$)",
+       y = "",
+       title = "Distribution of Declared Capital among Brazilian Companies by Legal Nature",
+       subtitle = "In Brazilian reais (R$)\n") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(linetype = "dotted", color = "gray70"),
+        panel.grid.minor = element_blank(),
+        plot.title.position = "plot",
+        axis.text = element_text(color = "black"),
+        text = element_text(family = "Raleway"),
+        plot.margin = margin(t = 10, unit = "pt"))
+
+#.SF Compact
+#Raleway
+#DIN Condensed
+#STIX Two Text
+
+ggsave(here("2026.01.27", "density_ridges_plot.png"),
+       height = 6,
+       width = 12,
+       device = "png",
+       type = "cairo")
+
+
+```

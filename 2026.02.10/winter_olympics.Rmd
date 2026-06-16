@@ -1,0 +1,90 @@
+---
+title: "2026 Winter Olympics"
+author: "Mark Deming"
+date: "2/10/2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(tidyverse, extrafont)
+
+tt <- tidytuesdayR::tt_load("2026-02-10")
+dat <- tt$schedule
+
+```
+
+
+```{r}
+summarized <- dat %>%
+  group_by()
+  
+p <-
+ggplot(dat %>% filter(is_medal_event == FALSE), 
+       aes(x = reorder(discipline_name, discipline_name, function(x)-length(x)))) +
+  
+  geom_bar(fill = "#0069C0") +
+  
+  scale_x_discrete(expand = c(0,0)) +
+  
+  scale_y_continuous(limits = c(0, 450),
+                     breaks = seq(0, 450, 50),
+                     labels = seq(0, 450, 50),
+                     expand = c(0,0)) +
+  
+  labs(title = "Number of events at the 2026 Winter Olympics",
+       subtitle = "\nNon-medal events\n",
+       x = "",
+       y = "") +
+  
+  theme_minimal() +
+  
+  theme(text = element_text(family = "Raleway", color = "gray50"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "dotted", color = "gray50"),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1, color = "gray50"),
+        axis.text.y = element_text(color = "gray50"))
+
+
+p2 <- 
+ggplot(dat %>% filter(is_medal_event == TRUE), 
+       aes(x = reorder(discipline_name, discipline_name, function(x)-length(x)))) +
+  geom_bar(fill = "#0069C0") +
+  
+  scale_x_discrete(expand = c(0,0)) +
+  
+  scale_y_continuous(limits = c(0, 50),
+                     breaks = seq(0, 50, 10),
+                     labels = seq(0, 50, 10),
+                     expand = c(0,0)) +
+  
+  labs(title = "",
+       subtitle = "\nMedal events\n",
+       caption = "Created by Mark Deming for TidyTuesday",
+       x = "",
+       y = "") +
+  
+  theme_minimal() +
+  
+  theme(text = element_text(family = "Raleway", color = "gray50"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "dotted", color = "gray50"),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1, color = "gray50"),
+        axis.text.y = element_text(color = "gray50"))
+
+p3 <- 
+cowplot::plot_grid(p, 
+                   p2, 
+                   align = "hv" # Force consistent plot dimensions
+                   )
+
+ggsave(here::here("2026.02.10", "number_of_events_barplots.png"),
+       width = 12,
+       height = 8)
+
+```

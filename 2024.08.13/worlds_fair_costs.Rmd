@@ -1,0 +1,197 @@
+---
+title: "TidyTuesday"
+subtitle: "World's Fairs"
+author: "Mark Deming"
+date: "8/13/2024"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Data
+tuesdata <- tidytuesdayR::tt_load('2024-08-13')
+dat <- tuesdata$worlds_fairs
+
+# Packages
+pacman::p_load(tidyverse,
+               extrafont,
+               socviz,
+               estimatr,
+               tidytext,
+               wordcloud,
+               wordcloud2)
+
+```
+
+
+## Line graph
+
+```{r}
+
+# Create labels
+dat <- dat %>%
+  mutate(my_label = paste(city, " ", "(", start_year, ")", sep = ""))
+
+p1 <- ggplot(dat) +
+  geom_point(aes(x = start_year, y = cost, color = category), shape = 1, size = 2) +
+  geom_smooth(aes(x = start_year, y = cost), method = "loess", se = FALSE, linewidth = .25, color = "gray40") +
+  geom_text(data = subset(dat, cost > 1000), 
+            aes(x = start_year, y = cost, label = my_label),
+            hjust = 0,
+            nudge_x = 1,
+            size = 3) +
+  scale_x_continuous(limits = c(1850, 2020),
+                     breaks = seq(1850, 2020, 10),
+                     labels = seq(1850, 2020, 10),
+                     expand = c(0, 10)) +
+  scale_y_continuous(limits = c(0, 5000),
+                     breaks = seq(0, 5000, 500),
+                     labels = seq(0, 5000, 500)) +
+  scale_color_manual(values = c("red", "blue"),
+                     labels = c("Specialized Expo", "World Expo")) +
+  labs(title = "Worlds Fair cost in millions USD",
+       subtitle = "Costs have increased over time\n",
+       x = "\nYear of World Fair",
+       y = "Cost (millions USD)\n",
+       color = "") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title.position = "plot"
+        )
+
+p1
+
+```
+
+```{r}
+
+ggsave("worlds_fair_costs_line_graph.png",
+       p1,
+       width = 30,
+       height = 20,
+       unit = "cm")
+
+```
+
+
+## Regression
+
+### Run Regression
+
+```{r}
+
+# Remove fairs in non-US currency
+exceptions <- c("Brussels International Exposition", "Brussels World's Fair", "Paris International Exposition", "Expo '67", "Expo '86", "Expo '88", "Expo 2000")
+
+cost_dat <- dat %>%
+  filter(name_of_exposition %nin% exceptions)
+
+# Add duration
+cost_dat <- cost_dat %>%
+  mutate(start_date = lubridate::make_date(start_year, start_month),
+         end_date = lubridate::make_date(end_year, end_month),
+         duration = interval(start_date, end_date) %/% months(1),)
+
+# Regression
+mod <- estimatr::lm_robust(cost ~ duration + visitors + attending_countries + category + area, data = cost_dat)
+```
+
+### Plot
+
+```{r}
+
+# Convert to tibble
+mod_tibble <- mod %>%
+  broom::tidy()
+  
+# Plot
+p1 <- 
+ggplot(data = subset(mod_tibble, term != "(Intercept)")) +
+  geom_hline(yintercept = 0, linetype = "dotted", linewidth = .25, color = "red") +
+  geom_segment(aes(x = reorder(term, estimate), 
+                   y = estimate + (1.645 * std.error), 
+                   yend = estimate - (1.645 * std.error)),
+               linewidth = .75) +
+  geom_segment(aes(x = reorder(term, estimate), y = conf.low, yend = conf.high)) +
+  geom_point(aes(x = reorder(term, estimate), y = estimate), shape = 21, fill = "white") +
+  coord_flip() +
+  scale_x_discrete(labels = c("Specialized Expo\n(versus World Expo)",
+                              "Area occupied by fair\n(in hectares)",
+                              "Number of visitors",
+                              "Number of attending\ncountries",
+                              "Fair duration\n(in months)")) +
+  scale_y_continuous(limits = c(-1000, 200),
+                     breaks = seq(-1000, 200, 200),
+                     labels = seq(-1000, 200, 200)) +
+  labs(title = "Correlates of World Fair cost",
+       subtitle = "Dependent variable: Cost of World Fair in millions USD*\n",
+       x = "",
+       y = "\nPoint estimate",
+       caption = "\n*Excludes Brussels International Exposition (1935), Brussels World's Fair (1958), Paris International Exposition\n(1937), Expo '67 (1967), Expo '86 (1986), Expo '88 (1988), and Expo 2000 (2000)") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title.position = "plot",
+        plot.caption.position = "plot",
+        plot.caption = element_text(hjust = 0),
+        text = element_text(family = "Helvetica Neue Light"),
+        axis.text.y = element_text(hjust = 0))
+
+```
+
+```{r}
+
+ggsave("correlates_of_worlds_fair_cost.png",
+       p1,
+       width = 16,
+       height = 20, 
+       units = "cm")
+
+```
+
+
+New skills:
+
+- lubridate month-year dates and duration
+
+
+## Word Cloud
+
+### Cleaning
+
+```{r}
+
+# Remove punctuation
+dat <- dat %>%
+  mutate(theme = gsub("[[:punct:] ]+", " ", theme))
+
+# Send words to single column
+text_df <- dat %>%
+  select(theme) %>%
+  tidytext::unnest_tokens(word, theme)
+
+# Count words
+count_text <- text_df %>%
+  count(word)
+
+# Remove prepositions, articles, etc.
+trash_words <- c("and", "the", "in", "of")
+count_text <- count_text %>%
+  filter(word %nin% trash_words)
+  
+```
+
+### Word Cloud
+
+```{r}
+
+wordcloud(words = count_text$word, 
+          freq = count_text$n, 
+          max.words = 300, 
+          colors = brewer.pal(8, "Purples"))
+
+```

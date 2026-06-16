@@ -1,0 +1,89 @@
+---
+title: "A few World Heritage Sites"
+subtitle: "TidyTuesday"
+author: "Mark Deming"
+date: "2024-02-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(tidyverse)
+library(MetBrewer)
+
+url <- "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-02-06/heritage.csv"
+dat <- read_csv(url(url))
+```
+
+## Basic bar plot
+
+Let's start with a basic bar plot of World Heritage Sites.
+
+```{r}
+p <- ggplot(dat, aes(x = country, y = `2022`)) +
+  geom_bar(stat = "identity") 
+p
+```
+
+
+## Pie chart of sites in 2022
+
+`ggplot` does not have a specific geom for pie charts. So, to make a pie chart, we build a stackd bar plot with one column. We then convert it to a pie chart using the `coord_polar()` function. Here are a few more details:
+
+We feed 3 data points into `ggplot`: 
+
+- `x` is missing, since we want just one column in our barplot (x = "")
+- `y` is the variable that contains the values (y = amount or proportion)
+- `fill` is variable that contains group names (fill = group_names)
+
+We build a barplot using `geom_bar()`:
+
+- set `width = 1` to eliminate white space around the bar
+- set `state = "identity"`, since the data already contains the specific amounts/proportions. (Remember, otherwise, `geom_bar` will try to generate amounts/proportions using `stat_count()`.)
+
+We convert the barplot to a pie chart using `coord_polar()`:
+
+- set `theta = "y"` to map pie angles to the y variable
+- set `start = 0` to start the pie at 12 o'clock
+
+**Here is an example that uses the data on World Heritage Sites for Denmark, Norway, and Sweden. It shows the number of Sites for the three countries in 2022:**
+
+```{r}
+p <- ggplot(dat, aes(x = "", y = `2022`, fill = country)) +
+  geom_bar(width = 1, 
+           stat = "identity") +
+  coord_polar("y", start = 0)
+p
+```
+
+
+## Improved pie chart
+
+Let's add labels and customize the colors, background, and theme. 
+
+```{r}
+p <- ggplot(dat, aes(x = "", y = `2022`, fill = country)) +
+  geom_bar(width = 1, 
+           stat = "identity",
+           color = "white") +
+  scale_fill_met_d("Peru2") +
+  geom_text(aes(x = 1.3, 
+                label = `2022`),
+                position = position_stack(vjust = .5),
+            color = "white") +
+  coord_polar("y", start = 0) +
+  theme_void()
+p
+```
+
+
+## On colors
+
+In Week 1, we saw that we must use color wisely. We must balance meaning (color that encodes data), beauty (palettes that appeal to human visual perception), accessibility (color blind palettes), and more. We examined some rules of thumb. But there are few hard-and-fast rules to guide us.
+
+One way to narrow the available color palette is to draw inspiration from major works of art. That is precisely what the `MetBrewer` package has done. When we are overwhelmed by the colors available to us, we can select from the package's curated options and incorporate it into our work. That is what I have done above: `scale_fill_met_d()` is from the `MetBrewer` package and applies to discrete (categorical) variables. I have used the `Peru2` palette.
+
+To view the `MetBrewer` color palettes, see this link: <https://www.blakerobertmills.com/my-work/met-brewer>. There is also a package that contains palettes based on works at NY Museum of Modern Art (`MoMAColors`).
+
