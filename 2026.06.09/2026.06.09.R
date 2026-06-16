@@ -9,7 +9,7 @@ library(showtext)
 
 # Theme -----------------------------------------------------------------------
 set_theme(theme_bw()) 
-update_theme(text = element_text(family = "Raleway"),
+update_theme(text = element_text(family = "Raleway", size = 10),
              panel.grid.minor = element_blank(),
              panel.grid.major = element_blank(),
              plot.title.position = "plot")
@@ -52,7 +52,6 @@ franchise_dat <- films |>
 
 
 # Plot ------------------------------------------------------------------------
-fig <- 
 franchise_dat |> 
   ggplot(aes(x = avg_tomatoes, 
              y = total_box_office)) +
@@ -63,12 +62,10 @@ franchise_dat |>
   ggrepel::geom_text_repel(aes(label = my_franchise_labels),
                            point.size = franchise_dat$n,
                            segment.color = "transparent",
-                           point.padding = 10,
+                           point.padding = 5,
                            direction = "x",
-                          # nudge_x = 1,
                            hjust = 1,
-                         #  vjust = "outward",
-                           size = 3.4,
+                           size = 2.7,
                            family = "Raleway",
                          fontface = "bold") +
   scale_x_continuous(limits = c(0, 100),
@@ -76,17 +73,14 @@ franchise_dat |>
                      labels = scales::label_percent(scale = 1)) +
   scale_y_log10(labels = scales::label_dollar(),
                 expand = expansion(mult = c(0.05, 0.1))) +
-  scale_size_continuous(range = c(3, 30)) +
+  scale_size_continuous(range = c(3, 20)) +
   labs(title = "Movie Franchises Based on Video Games",
        subtitle = "Rotten Tomatoes Scores and Total Worldwide Box Office\n",
-       caption = "Mark Deming | TidyTuesday | June 9th, 2026\nNote: Number of films in franchise denoted by point size. Also shown in parentheses.",
+       caption = "\nMark Deming | TidyTuesday | June 9th, 2026\nNote: Number of films in franchise denoted by point size. Also shown in parentheses.",
        x = "\nAverage Rotten Tomatoes Score",
-       y = "Total Worldwide Box Office\n")
+       y = "Total Worldwide Box Office\n") +
+  ggview::canvas(width = 7.5, height = 7) -> fig
 
 # Save ------------------------------------------------------------------------
-ggsave(here::here("2026.06.09", "2026.06.09.png"),
-       fig,
-       dpi = 300,
-       width = 12,
-       height = 8)
+ggview::save_ggplot(fig, here::here("2026.06.09", "2026.06.09.png"))
                         
