@@ -6,9 +6,6 @@ pacman::p_load(tidyverse,
                showtext)
 
 # Theming ---------------------------------------------------------------------
-
-
-# Theme -----------------------------------------------------------------------
 font_add_google("Raleway")
 
 title_font <- "Raleway"
