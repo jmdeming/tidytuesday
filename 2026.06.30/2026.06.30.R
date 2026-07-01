@@ -4,11 +4,53 @@ remotes::install_github("ropensci/rnaturalearthhires")
 pacman::p_load(tidyverse, 
                ggmap, 
                ggthemes,
+               glue,
+               showtext,
                sf,
                rnaturalearth,
                rnaturalearthdata)
 
+# Reusable caption function ---------------------------------------------------
+
+library(glue)
+
+viz_caption <- function(source,
+                        date = format(Sys.Date(), "%B %Y"),
+                        author = "Mark Deming",
+                        website = "github.com/jmdeming",
+                        note = NULL) {
+  
+  footer <- glue(
+    "<span style='color:#777777;'>",
+    "<b>Source:</b><span style='letter-spacing:2px;'> </span>{source}",
+    "<span style='letter-spacing:6px;'> • </span>",
+    "<b>Created:</b><span style='letter-spacing:2px;'> </span>{date}",
+    "</span><br>",
+    "<span style='color:#999999;'>",
+    "<b>{author}</b>",
+    " • ",      # Unicode EM SPACE around bullet
+    "{website}",
+    "</span>"
+  )
+  
+  if (!is.null(note)) {
+    footer <- paste0(
+      footer,
+      "<br><span style='font-size:8.5pt;color:#999999;'><i>",
+      note,
+      "</i></span>"
+    )
+  }
+  
+  footer
+}
+
 # Theming ---------------------------------------------------------------------
+font_add_google("Raleway", 
+                "Raleway",
+                regular.wt = 400,
+                bold.wt = 800)
+
 title_font <- "Raleway"
 subtitle_font <- "Raleway"
 body_font <- "Raleway"
@@ -19,26 +61,23 @@ showtext_opts(dpi = 300)
 set_theme(theme_bw(base_family = body_font, base_size = 10))
 update_theme(
   text = element_text(color = "#333333"),
-  plot.title = ggtext::element_textbox_simple(
-    size = rel(1.1),
+  plot.title = element_text(
+    size = 14,
     face = "bold",
     family = title_font,
-    margin = margin(t = 5, r = 0, b = 5, l = 0),
-    lineheight = 1
+    margin = margin(t = 5, r = 0, b = 5, l = 0)
   ),
-  plot.subtitle = ggtext::element_textbox_simple(
-    size = rel(0.8),
-    family = title_font,
+  plot.subtitle = element_text(
+    size = 11,
+    family = subtitle_font,
     margin = margin(t = 2, r = 0, b = 10, l = 0),
     lineheight = 1.3
   ),
-  plot.caption = ggtext::element_textbox_simple(
-    size = rel(0.5),
-    family = title_font,
-    hjust = 0,
-    halign = 1,
-    margin = margin(t = 20, r = 0, b = 0, l = 0),
-    lineheight = 1.2
+  plot.caption = ggtext::element_markdown(
+    size = rel(0.8),
+    hjust = 1,
+    lineheight = 1.15,
+    margin = margin(t = 18)
   ),
   plot.title.position = "plot",
   plot.background = element_rect(fill = "#FAFAF8"),
@@ -176,7 +215,7 @@ ggplot() +
     alpha = .6
   ) +
   geom_sf(
-    data = land,
+    data = ireland_land,
     fill = "gray95",
     color = "grey25",
     linewidth = .2
@@ -207,11 +246,13 @@ ggplot() +
     color = "grey25"
   ) +
   labs(title = "Concentration of Irish shipwrecks",
-       caption = "Mark Deming | TidyTuesday | 6/30/2026",
+       subtitle = "Recorded shipwrecks cluster along the island's western and southern coasts",
+       caption = viz_caption(
+         source = "Wreck Inventory of Ireland",
+         note = NULL
+       ),
        x = NULL,
-       y = NULL) +
-  theme_bw() +
-  theme(text = element_text(family = "Raleway")) +
+       y = NULL) + 
   ggview::canvas(width = 2000, height = 2000, units = "px") -> p
 
 p
