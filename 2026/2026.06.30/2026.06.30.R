@@ -246,7 +246,7 @@ ggplot() +
     color = "grey25"
   ) +
   labs(title = "Concentration of Irish shipwrecks",
-       subtitle = "Recorded shipwrecks cluster along the island's western and southern coasts",
+       subtitle = "Recorded shipwrecks cluster near Dublin, Cork, and along the island's\nnorthern coast",
        caption = viz_caption(
          source = "Wreck Inventory of Ireland",
          note = NULL

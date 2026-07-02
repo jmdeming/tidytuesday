@@ -1,29 +1,22 @@
-### Mark Deming
-### TidyTuesday
-### 4.21.2026
-
-### Global Health Spending
-
-
-####################
-### GitHub Token ###
-####################
-
-# Open GitHub token page in browser
- usethis::create_github_token()
-
-# Store the PAT securely
-#gitcreds::gitcreds_set()
-
-
-
-#######################
-### Packages & Data ### 
-#######################
+################
+### Packages ### 
+################
 
 # Packages
-pacman::p_load(here, tidyverse, usethis, gitcreds, tidytuesdayR, countrycode, ggridges, extrafont, plotly, htmltools)
+pacman::p_load(here, 
+               tidyverse, 
+               usethis, 
+               gitcreds, 
+               tidytuesdayR, 
+               countrycode, 
+               ggridges, 
+               extrafont, 
+               htmltools)
  
+############
+### Data ###
+############
+
 # TT Data
 tuesdata <- tidytuesdayR::tt_load('2026-04-21', )
 financing_schemes <- tuesdata$financing_schemes
@@ -36,7 +29,6 @@ my_wdi_vars <- c("SP.POP.TOTL", "NY.GDP.MKTP.KD", "NY.GDP.DEFL.ZS")
 wdi <- WDI::WDI(country = "all",
                 indicator = my_wdi_vars,
                 extra = TRUE)
-
 
 ################
 ### Cleaning ###
@@ -78,7 +70,6 @@ latam <- c("MEX", "GTM", "HND", "SLV", "NIC", "CRI", "PAN", "COL", "VEN", "PER",
 # Code LatAm countries
 merged <- merged |> 
   mutate(is_latam = ifelse(iso3_code %in% latam, 1, 0))
-
 
 ############
 ### Plot ###
@@ -136,10 +127,12 @@ merged |>
 
 p
 
+##############
+### Plotly ###
+##############
+
 ply <-
 ggplotly(p, tooltip = "text", width = 1200, height = 800) |> 
   style(textposition = "right")
-htmlwidgets::saveWidget(ply, here("2026.04.21", "health_spending_plotly.html"))
 
-
-
+htmlwidgets::saveWidget(ply, here("2026", "2026.04.21", "2026.04.21.html"))
