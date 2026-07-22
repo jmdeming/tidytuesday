@@ -1,0 +1,281 @@
+---
+title: "Untitled"
+author: "Mark Deming"
+date: "2026-02-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(tidyverse, extrafont, ggthemes, socviz, janitor, colorspace, scales)
+
+tuesdata <- tidytuesdayR::tt_load('2026-02-17')
+tt <- tuesdata$dataset |> clean_names()
+
+```
+
+This was a tricky challenge. It was very difficult to determine what I wanted to convey. I eventually decided to visualize the growth over time of horticultural products with the highest growth. I looked up simple cumulative growth rates as well as compound cumulative growth rates. These yielded slightly different products as the top performers. I went with simple overall growth because it was more intuitive, even if it wasn't the most precise.
+
+In addition to growth rates, I learned about the `slice_min()` and `slice_max()` functions, as well as `first()` and `last()` inside `mutate()`. These will be useful going forward.
+
+The final plots looks okay, but only product 1-4 are very informative. The remaining two are small enough that they appear like flat lines effectively. It's also worth noting that the products I visualized have missing data for several years, but this is not reflected in the visuals themselves given the behavior of `geom_line()`. 
+
+```{r}
+
+dataset_raw <- tt
+
+### |- filter horticulture crops ----
+hort_crops <- c("Wine grapes", "Kiwifruit", "Apples", "Avocados")
+
+hort_data <- dataset_raw |>
+  filter(measure %in% hort_crops) |>
+  select(
+    year = year_ended_june,
+    crop = measure,
+    hectares = value
+  ) |>
+  arrange(crop, year) |> 
+  mutate(is_focus = crop == "Wine grapes")
+
+### |- calculate growth metrics (robust) ----
+hort_growth <- hort_data |>
+  group_by(crop) |>
+  summarise(
+    first_year = min(year),
+    last_year = max(year),
+    first_value = hectares[year == min(year)] |> first(),
+    last_value = hectares[year == max(year)] |> first(),
+    peak_value = max(hectares, na.rm = TRUE),
+    peak_year = year[which.max(hectares)] |> first(),
+    growth_pct = (last_value - first_value) / first_value * 100,
+    .groups = "drop"
+  )
+
+### |- end-point labels ----
+end_labels <- hort_data |>
+  group_by(crop) |>
+  filter(year == max(year)) |>
+  ungroup()
+
+### |- crop-specific label offsets ----
+label_offsets <- tibble(
+  crop = hort_crops,
+  dy   = c(0, 0, -1100, 0) 
+)
+
+end_labels2 <- end_labels |>
+  left_join(label_offsets, by = "crop") |>
+  mutate(dy = replace_na(dy, 0))
+
+### |- compute subtitle stats from data  ----
+wine_stats <- hort_growth |>
+  filter(crop == "Wine grapes") |>
+  mutate(
+    last_value_round = round(last_value, -2),
+    growth_x         = last_value / first_value
+  )
+
+wine_growth_x <- round(wine_stats$growth_x, 1)
+wine_last_ha <- comma(wine_stats$last_value_round)
+  
+p <- ggplot(hort_data, aes(x = year, y = hectares, color = crop)) +
+
+  # Geoms
+  geom_line(
+    aes(alpha = is_focus),
+    linewidth = 0.9
+  )
+p
+```
+
+
+
+```{r}
+
+
+
+# Grab apples
+tt |> 
+  filter(measure == "Apples") |> 
+  ggplot(aes(year_ended_june, value)) +
+  geom_line()
+
+apples |>  filter(product == "Apples") |> 
+  ggplot(aes(year, hectares)) +
+  geom_line()
+
+
+# Grab plant products
+plants <- tt |>
+  mutate(value_label = ifelse(value_label == "Hectared", "Hectares", value_label)) |> 
+  filter(value_label == "Hectares") |> 
+  select(-value_label,
+         -value_unit) |> 
+  rename(year = year_ended_june,
+         product = measure,
+         hectares = value)
+
+
+# Pull out total farmed area as separate column
+plants <- plants |> 
+  pivot_wider(id_cols = year,
+              names_from = product,
+              values_from = hectares) |> 
+  pivot_longer(cols = -c(year, `Total Area of Farms`),
+               names_to = "product",
+               values_to = "hectares") |> 
+  rename(total_farmed_area = `Total Area of Farms`)
+
+
+# Find first, last, max, min values
+plants <- plants |> 
+  group_by(product) |> 
+  mutate(first_year = first(year[!is.na(hectares)]),
+         last_year = last(year[!is.na(hectares)]),
+         max_value = max(hectares, na.rm = T),
+         min_value = min(hectares, na.rm = T)) |> 
+  filter(year > 1981)
+
+
+# Create compound annual growth rates
+plants <- plants |> 
+  arrange(product, year) |>
+  group_by(product) |>
+  mutate(
+    simple_growth = (hectares[year == last_year] - hectares[year == 1982]) / hectares[year == 1982],
+    growth_rate = (hectares / lag(hectares)) - 1,
+    growth_rate = replace_na(growth_rate, 0),
+
+    # Handle lag(value) == 0 explicitly (choose a rule)
+    growth_rate = if_else(is.infinite(growth_rate), NA_real_, growth_rate),
+
+    growth_multiplier = 1 + growth_rate,
+    cum_growth_multiplier = cumprod(replace_na(growth_multiplier, 1)),
+    final_cum_rate = last(cum_growth_multiplier) - 1
+  ) |>
+  ungroup()
+
+
+# Grab high and low growth agricultural products
+growth_tbl <- plants |> 
+  arrange(product, year) |> 
+  ungroup() |> 
+  group_by(product) |> 
+  summarize(#final_cum_rate = last(final_cum_rate),
+            simple_growth = last(simple_growth),
+            .groups = "drop")
+
+#top_bottom_products <- bind_rows(
+#  growth_tbl |> slice_max(simple_growth, n = 15),
+#  growth_tbl |> slice_min(simple_growth, n = 15)
+#)
+
+# Top only
+top_products <- 
+  growth_tbl |> slice_max(simple_growth, n = 30)
+
+drops <- c("Maize (area sown)", "Hectares effluent sprayed over", "Flowers and Foliage (Outdoor)",
+           "Other Outdoor Horticultural Crops", "New Area Planted in Production Forest", 
+           "Other land", "Wheat (area sown)", "Barley (area sown)", "Plantations of Exotic Trees",
+           "Tussock or Danthonia", "Crops, Grain, Nursery, Vegetables and Fruit", "Oats (area sown)",
+           "Grassland and Lucerne", "Grain", "Field peas (area sown)", 
+           "Crops, Grain, Nursery, Vegetables and Fruit", "	Plantations of Exotic Trees")
+
+#top_bottom_products <- top_bottom_products |> 
+#  filter(product %nin% drops)
+
+#top_bottom_products <- bind_rows(
+#  top_bottom_products |>  slice_max(simple_growth, n = 6),
+#  top_bottom_products |>  slice_min(simple_growth, n = 6)
+#)
+
+top_products <- top_products |> 
+  filter(product %nin% drops) |> 
+  slice_max(simple_growth, n = 6)
+
+# Add years back in 
+df_top <- plants %>%
+  semi_join(top_products, by = "product")
+
+
+# Remove NA values(?)
+df_top <- df_top |> 
+  filter(!is.na(hectares))
+
+
+# ID Winners & Losers
+#winners <- c("Wine grapes", "Kiwifruit", "Apples", "Avocados", "Asparagus", "Cherries")
+#losers <- c("Peaches", "Blueberries", "Tangelos", "Tamarillos", "Raspberries", "Grapefruit/Goldfruit")
+
+
+# Add Ha value for 2024
+df_top <- df_top |> 
+  group_by(product) |> 
+  mutate(last_value = last(hectares),
+         first_value = first(hectares))
+
+# Color palette
+pal <- MetBrewer::met.brewer("Lakota")
+swatchplot(pal)
+
+
+# Plot 1 - WINNERS
+p <-
+ggplot(df_top,
+       aes(year, hectares, group = product)) +
+  
+  geom_line(aes(color = product), size = .75) +
+  
+  facet_wrap(~fct_reorder(product, -max_value), ncol = 2) +
+  
+  scale_x_discrete(breaks = seq(1982, 2024, 10),
+                   expand = expansion(mult = c(.2, .2))) +
+  
+  scale_y_continuous(limits = c(0, 40000),
+                     breaks = seq(0, 40000, 10000),
+                     expand = expansion(mult = c(.1, .1)),
+                     labels = scales::label_number(scale_cut = scales::cut_short_scale())) +
+  
+  scale_color_manual(values = pal, 
+                     guide = F) +
+  
+  geom_text(aes(x = 2024, y = last_value, 
+                label = paste(scales::comma(last_value), "Ha.")),
+            size = 2.75,
+            family = "Raleway",
+            color = "gray40",
+            nudge_x = .5,
+            hjust = "left") +
+  
+    geom_text(aes(x = 1982, y = first_value, 
+                label = paste(scales::comma(first_value), "Ha.")),
+            size = 2.75,
+            family = "Raleway",
+            color = "gray40",
+            nudge_x = -.5,
+            hjust = "right") +
+  
+  labs(title = "What's growing in New Zealand?",
+       subtitle = "Planted area in Hectares for horticultural crops with highest growth, 1982-2024\n",
+       x = "", y = "") +
+  
+  theme_minimal() +
+  
+  theme(text = element_text(family = "Raleway"),
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(size = .25),
+        panel.grid.major.x = element_blank(),
+        strip.text = element_text(hjust = 0),
+        plot.title.position = "plot")
+
+p
+
+ggsave("top_growing_agr_product_line_graph.png",
+       p,
+       width = 8,
+       height = 6,
+       dpi = 300
+       )
+
+```
