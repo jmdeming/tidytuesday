@@ -43,7 +43,7 @@ scrolls <- tuesdata$dead_sea_scrolls
 plot_title <- "Most Copied Dead Sea Scriptures"
 
 plot_subtitle <- glue::glue(
-  "Many non-canonical scriptures were copied, demonstrating <br> their importance to the Qumram community"
+  "Many non-canonical scriptures were copied, demonstrating <br> their importance to the Qumran community"
 )
 
 
@@ -209,3 +209,4 @@ ggview::save_ggplot(
     "2026/2026.09.15/2026.09.15.png"
   )
 )
+
