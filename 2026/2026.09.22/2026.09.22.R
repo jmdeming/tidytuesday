@@ -3,7 +3,6 @@ pacman::p_load(
   patchwork
 )
 
-
 # Utility functions
 source(here::here("R/utils/fonts.R"))
 source(here::here("R/utils/social_icons.R"))
@@ -25,9 +24,6 @@ body_color       <- "black"
 caption_color    <- "#4A4340"
 background_color <- "#F4F3EE"
 
-
-
-
 ### Data ----------------------------------------------------------------------
 
 #usethis::create_github_token()
@@ -46,7 +42,6 @@ plot_data <- urban |>
                              my_city == "Springfield, Massachusett, Connecticut" ~ "Springfield, MA",
                              my_city == "Columbia, South Carolina" ~ "Columbia, SC",
                              .default = my_city))
-
 
 ### Titles --------------------------------------------------------------------
 
@@ -178,7 +173,6 @@ annotation_theme <- theme(
   )
 )
 
-
 ### Plot ----------------------------------------------------------------------
 
 # Top 20
@@ -213,7 +207,6 @@ ggplot(plot_data |> slice_head(n = 20),
        x = "Green Space Percent",
        y = NULL)
 
-
 ### Patchwork -----------------------------------------------------------------
 
 patch <- p + p2 + 
@@ -230,8 +223,6 @@ patch <- patch +
     height = 7, 
     units = "in", 
     dpi = 320)
-
-patch
 
 ### Save -------------------------------------------------------------------------
 
